@@ -1,0 +1,11 @@
+{
+  "arm": "kv",
+  "title": "冻结 Draft 的单 K/V 反馈槽",
+  "modes": [
+    "raw",
+    "true",
+    "mask",
+    "shuffle"
+  ],
+  "default_loss": "equal"
+}

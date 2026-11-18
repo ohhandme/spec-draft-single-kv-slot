@@ -1,0 +1,29 @@
+{
+  "backend_sha256": "a24f7bc95745df165fa9e1d3ad2a6110afca38f8f68268a6da755a22fdb36632",
+  "decoder_sha256": "a9a9e91e44b9dc36fa49a23004503098e1dd48f4db4b51a69d0f966eb67eb33e",
+  "model_manifest_sha256": "3aa01f3c1f4b9bf488fbe696a374775e4ebf371be1a1836f5a1bda02256c3ee4",
+  "train_index_sha256": "6b8797ea5155e4fd9bd01474fd3c669e6902e2025b5723e03e2a5faf311c3ff6",
+  "development_roster_sha256": "2984416ba4d9e55a39cfd23237363881aaf105f631d3e2a2e0890f78d7887d8e",
+  "device": "cuda:0",
+  "expected_teacher_rows": 1247237,
+  "seed": 42,
+  "window": 8,
+  "max_new": 128,
+  "eos_token_id": 151645,
+  "lora_rank": 8,
+  "lora_alpha": 16,
+  "slot_layer": 0,
+  "teacher_shard_rows": 256,
+  "tokens_per_step": 16,
+  "max_updates": null,
+  "learning_rate": 0.0001,
+  "weight_decay": 0.01,
+  "checkpoint_interval": 128,
+  "warmup_requests": 1,
+  "implementation_sha256": {
+    "draft_interventions.py": "049eef4831145905ed8f948ea86b1b4112c0a858bb026903c322f498b4da371e",
+    "program62_data.py": "1040998e63d33c04e153b21016127c5759f1f80470d2a7f990a72ad3e6e12292",
+    "program62_run.py": "bf0556c11770e974521899a2355d92b21895a6948be206a5fd15021d557c43fc",
+    "rollout_coverage.py": "94ee21605b3516dc6c47012701e7b8cc0b0570a1ac712f6c27f5bfadeea6da5d"
+  }
+}
