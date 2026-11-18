@@ -7,5 +7,5 @@
     "mask",
     "shuffle"
   ],
-  "default_loss": "equal"
+  "default_loss": "front"
 }

@@ -11,6 +11,8 @@ python -m pip install -r requirements.txt
 python cpu_smoke.py
 ```
 
+原机的模型目录是 `/data/transfer_from_4090/models`，模型清单是 `/data/task59-a100-closedloop-20261114-v1/models.json`，训练索引来自 `/data/a100-repair-raw5000-20261113-v1/index.jsonl`，RAW 来自 `/data/a100-ultrachat5000-vanilla-20261111-7858dc6a/shards`。开发题单使用已交付的 `historical200_dev_replay_roster.jsonl`，按原字节复制。也可以从原机的 `task62-20261118-cpu-coverage/inputs` 下取得同一个文件。
+
 把以下已核对的输入放在一个挂载目录内。路径可以是软链接。训练索引、模型清单、模型文件和开发题单按 `candidate.json` 对应哈希验证。原 RAW 分片按各分片的收据逐份校验。
 
 ```text
@@ -39,7 +41,7 @@ inputs/
 set -e
 run() {
   python experiment.py "$@" --assets /mnt/spec-inputs --out /srv/spec-runs/kv \
-    --teacher-cache /srv/spec-runs/shared-teacher-exact --loss equal
+    --teacher-cache /srv/spec-runs/shared-teacher-exact --loss front
 }
 run smoke
 run parity
