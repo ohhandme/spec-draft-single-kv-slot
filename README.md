@@ -11,7 +11,7 @@ python -m pip install -r requirements.txt
 python cpu_smoke.py
 ```
 
-原机的模型目录是 `/data/transfer_from_4090/models`，模型清单是 `/data/task59-a100-closedloop-20261114-v1/models.json`，训练索引来自 `/data/a100-repair-raw5000-20261113-v1/index.jsonl`，RAW 来自 `/data/a100-ultrachat5000-vanilla-20261111-7858dc6a/shards`。开发题单使用已交付的 `historical200_dev_replay_roster.jsonl`，按原字节复制。也可以从原机的 `task62-20261118-cpu-coverage/inputs` 下取得同一个文件。
+原机的模型目录是 `/data/transfer_from_4090/models`，模型清单是 `/data/task59-a100-closedloop-20261114-v1/models.json`，训练索引来自 `/data/a100-repair-raw5000-20261113-v1/index.jsonl`，RAW 来自 `/data/a100-ultrachat5000-vanilla-20261111-7858dc6a/shards`。开发题单使用本仓库 `inputs/development_a100_target_roster.jsonl`，按原字节复制到挂载目录的 `rosters/development.jsonl`。其 SHA256 是 `690b30ee136157a2ce02d046f9b01d4c45eb6d08f91b6a022c4c51d7f5b6427e`。同200个历史题目已在当前 A100 的原生 Target 入口重新独立生成答案，共24,810个 token；其中113题与旧4090答案不同。题单只用于开发评估，训练继续用独立的 RAW 训练前缀。采集来源和封存摘要见 `inputs/a100_target_tape_receipt.json` 与 manifest。更换模型或运行环境后，先在本机原生 Target 入口完成答案对账，再比较各组。
 
 把以下已核对的输入放在一个挂载目录内。路径可以是软链接。训练索引、模型清单、模型文件和开发题单按 `candidate.json` 对应哈希验证。原 RAW 分片按各分片的收据逐份校验。
 

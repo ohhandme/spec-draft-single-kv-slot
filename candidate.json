@@ -3,7 +3,7 @@
   "decoder_sha256": "a9a9e91e44b9dc36fa49a23004503098e1dd48f4db4b51a69d0f966eb67eb33e",
   "model_manifest_sha256": "3aa01f3c1f4b9bf488fbe696a374775e4ebf371be1a1836f5a1bda02256c3ee4",
   "train_index_sha256": "6b8797ea5155e4fd9bd01474fd3c669e6902e2025b5723e03e2a5faf311c3ff6",
-  "development_roster_sha256": "2984416ba4d9e55a39cfd23237363881aaf105f631d3e2a2e0890f78d7887d8e",
+  "development_roster_sha256": "690b30ee136157a2ce02d046f9b01d4c45eb6d08f91b6a022c4c51d7f5b6427e",
   "device": "cuda:0",
   "expected_teacher_rows": 1247237,
   "seed": 42,
