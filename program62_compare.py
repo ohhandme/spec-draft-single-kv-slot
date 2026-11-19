@@ -81,10 +81,11 @@ def read_eval(root, config_sha, roster, arm, split, mode):
                   "first_commit_p95_s": quantile([r["first_commit_seconds"] for r in rows.values()], 0.95)}
 
 
-def read_fixed(root, config_sha, roster, mode):
+def read_fixed(root, config_sha, roster, mode, checkpoint_sha):
     terminal = read_json(root / "completion.json")
     require(terminal["mode"] == mode and terminal["config_sha256"] == config_sha
             and terminal["status"] == "complete", "fixed-window terminal differs")
+    require(terminal.get("checkpoint_sha256") == checkpoint_sha, "fixed-window checkpoint differs")
     rows = {}
     for row in terminal["rows"]:
         key = row["request_id"]
@@ -155,8 +156,13 @@ def main():
     seed, samples = 42, 10000
     observed = {mode: read_eval(root / f"{args.split}-{mode}", config_sha, roster, args.arm, args.split, mode)
                 for mode in modes}
-    checkpoint_shas = {observed[mode][1]["checkpoint_sha256"] for mode in modes if mode != "raw"}
-    require(len(checkpoint_shas) == 1 and None not in checkpoint_shas, "evaluation modes used different checkpoints")
+    terminal = read_json(root / "completion.json")
+    require(terminal["status"] == "complete" and terminal["arm"] == args.arm and
+            terminal["config_sha256"] == config_sha, "training checkpoint binding differs")
+    checked_file(root / "last.pt", terminal["checkpoint_sha256"])
+    for mode in modes:
+        expected = None if mode == "raw" else terminal["checkpoint_sha256"]
+        require(observed[mode][1]["checkpoint_sha256"] == expected, "evaluation checkpoint differs from training")
     counts = {mode: {key: (row["accepted_draft_tokens"], row["verification_rounds"]) for key, row in rows.items()}
               for mode, (rows, _) in observed.items()}
     report = {"arm": args.arm, "split": args.split, "config_sha256": config_sha,
@@ -164,7 +170,8 @@ def main():
               "paired": {mode: compare_by_family(roster, counts["raw"], counts[mode], seed, samples)
                          for mode in modes if mode != "raw"}}
     if args.split == "development":
-        fixed = {mode: read_fixed(root / f"fixed-{mode}", config_sha, roster, mode) for mode in modes}
+        fixed = {mode: read_fixed(root / f"fixed-{mode}", config_sha, roster, mode,
+                                  observed[mode][1]["checkpoint_sha256"]) for mode in modes}
         report["fixed"] = fixed_comparisons(fixed, roster, args.arm, seed, samples)
     atomic_json(args.out, report)
 

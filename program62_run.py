@@ -177,10 +177,8 @@ def request_eval(cfg, decode, target, draft, request, slot=None, mode="raw", don
     first_token_at = None
 
     def token(prefix, state, position):
-        if mode == "raw":
-            hidden = draft.teacher_hidden(prefix, [0])
-            return int(draft.model.get_output_embeddings()(hidden).argmax())
-        return int(draft_logits(draft, prefix, slot, state).argmax())
+        with slot.activate(state) if slot is not None else nullcontext():
+            return draft.next(prefix, None, position)
 
     def target_step(prefix):
         step = target.next(prefix)
@@ -377,6 +375,7 @@ def fixed_windows(cfg, cfg_sha, arm, mode, target, draft, root, arm_root):
     roster = list(jsonl(cfg["development_roster"]))
     slot = None
     donors = None
+    checkpoint_sha = None
     if mode != "raw":
         adapter = make_adapter(arm, draft, target, cfg)
         path = arm_root / "last.pt"
@@ -384,6 +383,7 @@ def fixed_windows(cfg, cfg_sha, arm, mode, target, draft, root, arm_root):
         require(terminal["config_sha256"] == cfg_sha and terminal["status"] == "complete",
                 "fixed-window checkpoint binding differs")
         checked_file(path, terminal["checkpoint_sha256"])
+        checkpoint_sha = terminal["checkpoint_sha256"]
         payload = torch.load(path, map_location="cpu", weights_only=True)
         require(payload["arm"] == arm and payload["config_sha256"] == cfg_sha, "wrong fixed-window checkpoint")
         adapter.load_state_dict(payload["adapter"])
@@ -417,8 +417,9 @@ def fixed_windows(cfg, cfg_sha, arm, mode, target, draft, root, arm_root):
                     state = Feedback(donor[0], len(prefix) - 1)
             proposal = []
             accepted = 0
-            for label in labels:
-                greedy = int(draft_logits(draft, prefix + proposal, slot, state).argmax())
+            for position, label in enumerate(labels, start=1):
+                with slot.activate(state) if slot is not None else nullcontext():
+                    greedy = draft.next(prefix + proposal, None, position)
                 proposal.append(greedy)
                 if greedy == label and accepted == len(proposal) - 1:
                     accepted += 1
@@ -430,6 +431,7 @@ def fixed_windows(cfg, cfg_sha, arm, mode, target, draft, root, arm_root):
                             "feedback_donor": donor[1] if mode == "shuffle" and state else None})
     require(windows, "no common feedback anchor")
     atomic_json(root / "completion.json", {"status": "complete", "config_sha256": cfg_sha, "mode": mode,
+                "checkpoint_sha256": checkpoint_sha,
                 "windows": len(windows), "total_accepted": sum(row["accepted"] for row in windows),
                 "feedback_windows": sum(row["feedback_present"] for row in windows), "rows": windows})
 

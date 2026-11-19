@@ -34,6 +34,10 @@ class Backend:
         return SimpleNamespace(token_id=int(self.model.get_output_embeddings()(hidden.unsqueeze(0)).argmax()),
                                hidden=hidden)
 cfg={'lora_rank':8,'lora_alpha':16,'slot_layer':0,'window':8,'max_new':9,'eos_token_id':47}
+class DraftBackend(Backend):
+    def next(self, prefix, codes, position):
+        assert codes is None and 1 <= position <= 8
+        return int(self.model(self._ids(prefix),use_cache=False).logits[0,-1].argmax())
 target=Backend()
 prompt=[1,4,7,9]
 oracle=[]
@@ -44,7 +48,7 @@ for _ in range(cfg['max_new']):
 req={'request_id':'fixture','family_id':'family-a','prompt_token_ids':prompt,'expected_target_token_ids':oracle}
 results={}
 for arm in (json.loads((ROOT / 'experiment.json').read_text())['arm'],):
-    draft=Backend()
+    draft=DraftBackend()
     adapter=runner.make_adapter(arm,draft,target,cfg)
     slot=adapter if arm=='kv' else None
     if arm=='lora': enable_lora(draft.model,False)

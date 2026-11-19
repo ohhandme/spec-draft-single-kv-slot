@@ -23,7 +23,8 @@
   "implementation_sha256": {
     "draft_interventions.py": "049eef4831145905ed8f948ea86b1b4112c0a858bb026903c322f498b4da371e",
     "program62_data.py": "153b731ee798eb0477931712a52f7374a2bfdea33dde3b2caef3c4df3493af36",
-    "program62_run.py": "87d953c0fa186784b234b10a633470ab361daacffc7d55b1e5c79d43776fbf96",
-    "rollout_coverage.py": "94ee21605b3516dc6c47012701e7b8cc0b0570a1ac712f6c27f5bfadeea6da5d"
+    "program62_run.py": "2482460c3a6f8d0dfd91774099d0cf17c25821213cfa078449087a71e0c47fcf",
+    "rollout_coverage.py": "94ee21605b3516dc6c47012701e7b8cc0b0570a1ac712f6c27f5bfadeea6da5d",
+    "program62_compare.py": "ea8bf2b0f2f1e98f07c4ea75415491be16ab7ff599c25002d8ef4baa8b3d5f0d"
   }
 }
