@@ -42,6 +42,54 @@ def checked_file(path, expected):
     require(digest_file(path) == expected, f"input digest differs: {path}")
 
 
+def logit_digest(logits):
+    import torch
+    values = logits.detach().float().cpu().contiguous()
+    return sha256(values.view(torch.uint8).numpy().tobytes()).hexdigest()
+
+
+def exact_logit_payload(native, rebuilt):
+    """Preserve canonical native logits when a different GEMM shape rounds differently."""
+    import torch
+    native, rebuilt = native.detach().float(), rebuilt.detach().float()
+    require(native.ndim == 1 and native.shape == rebuilt.shape
+            and bool(native.isfinite().all()) and bool(rebuilt.isfinite().all()),
+            "invalid native or reconstructed teacher logits")
+    indices = (native != rebuilt).nonzero().flatten()
+    values = native[indices]
+    compact_dtype = torch.bfloat16 if torch.equal(native, native.bfloat16().float()) else torch.float32
+    sparse_bytes = indices.numel() * (4 + torch.empty((), dtype=compact_dtype).element_size())
+    dense_bytes = native.numel() * torch.empty((), dtype=compact_dtype).element_size()
+    kind = "hidden" if not indices.numel() else "sparse" if sparse_bytes < dense_bytes else "dense"
+    payload = {"kind": kind, "native_sha256": logit_digest(native),
+               "different_logits": indices.numel(), "vocabulary": native.numel(),
+               "max_abs_difference": float((native - rebuilt).abs().max())}
+    if kind == "sparse":
+        payload.update(ids=indices.to(device="cpu", dtype=torch.int32),
+                       values=values.to(device="cpu", dtype=compact_dtype))
+    if kind == "dense":
+        payload["values"] = native.to(device="cpu", dtype=compact_dtype)
+    return payload
+
+
+def rebuild_teacher_logits(row, teacher_hidden, target):
+    import torch
+    patch = row.get("_teacher_logit_patch")
+    require(patch is None or patch["kind"] in ("hidden", "sparse", "dense"), "unknown native teacher encoding")
+    if patch is not None and patch["kind"] == "dense":
+        logits = patch["values"].to(target.device).float()
+    else:
+        head = target.model.get_output_embeddings()
+        logits = head(teacher_hidden.to(target.device).reshape(1, -1))[0].float()
+        if patch is not None and patch["kind"] == "sparse":
+            logits[patch["ids"].to(device=target.device, dtype=torch.long)] = patch["values"].to(target.device).float()
+    if patch is not None:
+        require(logits.numel() == patch["vocabulary"] and logit_digest(logits) == patch["native_sha256"],
+                "teacher logits differ from sealed native Target distribution")
+    require(bool(logits.isfinite().all()), "nonfinite reconstructed teacher logits")
+    return logits
+
+
 def rollout_examples(index_path, shards_path):
     """Use every scored candidate position from the frozen training trajectories."""
     seen = set()
@@ -160,9 +208,16 @@ def collect_teacher(config, config_sha, target, root):
                 hidden = states[0, -1].contiguous().detach()
                 native = output.logits[0, -1]
                 rebuilt = head(hidden.reshape(1, -1))[0]
-                require(torch.equal(native, rebuilt) and bool(native.isfinite().all()),
-                        f"Target reconstruction mismatch at {row['prefix_sha256']}")
+                patch = exact_logit_payload(native, rebuilt)
+                row["teacher_logit_patch"] = {key: value for key, value in patch.items() if key not in ("ids", "values")}
+                probe = {**row, "_teacher_logit_patch": patch}
+                require(torch.equal(rebuild_teacher_logits(probe, hidden, target), native.float()),
+                        f"native teacher codec failed at {row['prefix_sha256']}")
                 values[str(offset)] = hidden.cpu()
+                if "values" in patch:
+                    values[f"{offset}.logit_values"] = patch["values"]
+                if "ids" in patch:
+                    values[f"{offset}.logit_ids"] = patch["ids"]
                 row["target_greedy_id"] = int(native.argmax())
                 row["hidden_key"] = str(offset)
         stem = f"part-{part_index:08d}"
@@ -213,4 +268,12 @@ def teacher_rows(root, config, config_sha):
                     require(rid == row["request_id"] and Path(rid).name == rid,
                             "teacher cache feedback request differs")
                     source["path"] = str(Path(config["raw_shards"]) / rid / "features.safetensors")
+                metadata = row.get("teacher_logit_patch")
+                if metadata is not None:
+                    patch = dict(metadata)
+                    if metadata["kind"] != "hidden":
+                        patch["values"] = tensors.get_tensor(row["hidden_key"] + ".logit_values")
+                    if metadata["kind"] == "sparse":
+                        patch["ids"] = tensors.get_tensor(row["hidden_key"] + ".logit_ids")
+                    row["_teacher_logit_patch"] = patch
                 yield row, tensors.get_tensor(row["hidden_key"])

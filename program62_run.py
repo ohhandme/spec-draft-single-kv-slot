@@ -18,6 +18,7 @@ from draft_interventions import Feedback, SingleSlot, attach_lora, enable_lora
 from program62_data import (
     atomic_json, checked_file, collect_teacher, digest_file, feedback_hidden,
     jsonl, read_json, require, rollout_examples, teacher_rows, validated_teacher_receipt,
+    exact_logit_payload, rebuild_teacher_logits,
 )
 from rollout_coverage import prefix_sha
 
@@ -72,7 +73,6 @@ def token_weight(depth, weighting):
 def equal_token_step(rows, draft, target, adapter, slot, optimizer, weighting="equal"):
     optimizer.zero_grad(set_to_none=True)
     losses = []
-    target_head = target.model.get_output_embeddings()
     weights = [token_weight(row.get("draft_depth", 1), weighting) for row, _ in rows]
     total_weight = sum(weights)
     for (row, teacher_hidden), weight in zip(rows, weights):
@@ -81,7 +81,7 @@ def equal_token_step(rows, draft, target, adapter, slot, optimizer, weighting="e
         state = Feedback(feedback_hidden(source), row["visible_from"]) if slot and source else None
         require(slot is None or state is not None, "training slot received a first-round row")
         with torch.no_grad():
-            label_logits = target_head(teacher_hidden.to(target.device).reshape(1, -1))[0].float()
+            label_logits = rebuild_teacher_logits(row, teacher_hidden, target)
             require(int(label_logits.argmax()) == row["target_greedy_id"], "teacher greedy label changed")
             log_p = label_logits.log_softmax(-1)
         log_q = draft_logits(draft, row["prefix_ids"], slot, state).log_softmax(-1)
@@ -247,7 +247,9 @@ def smoke(cfg, cfg_sha, arm, target, draft, root):
             last = hidden[0, -1].detach().cpu()
             expected = output.logits[0, -1]
             rebuilt = target.model.get_output_embeddings()(last.to(target.device).reshape(1, -1))[0]
-            require(torch.equal(expected, rebuilt), "smoke teacher distribution did not reconstruct exactly")
+            row["_teacher_logit_patch"] = exact_logit_payload(expected, rebuilt)
+            require(torch.equal(rebuild_teacher_logits(row, last, target), expected.float()),
+                    "smoke native teacher codec failed")
             row["target_greedy_id"] = int(expected.argmax())
         rows.append((row, last.clone()))
     require(len(rows) == 8, "insufficient legal training smoke rows")
@@ -272,7 +274,10 @@ def smoke(cfg, cfg_sha, arm, target, draft, root):
             "frozen Draft changed during smoke")
     require(all(param.grad is None for param in target.model.parameters()), "Target accumulated a gradient")
     atomic_json(root / "smoke.json", {"status": "pass", "arm": arm, "config_sha256": cfg_sha,
-                "checked_development_requests": 3, "training_rows": 8, "FKL": loss, "gradient_norm": norm})
+                "checked_development_requests": 3, "training_rows": 8, "FKL": loss, "gradient_norm": norm,
+                "native_teacher_codec": [
+                    {key: value for key, value in row["_teacher_logit_patch"].items() if key not in ("ids", "values")}
+                    for row, _ in rows]})
 
 
 @contextmanager
